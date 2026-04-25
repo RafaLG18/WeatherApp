@@ -1,6 +1,8 @@
 package com.weatherapp
 
 import android.app.Activity
+import android.content.Intent
+import android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -58,7 +60,7 @@ fun LoginPage(modifier: Modifier = Modifier) {
         horizontalAlignment = CenterHorizontally
     ) {
         Text(
-            text = "Bem-vindo/a!",
+            text = "Bem-vindo(a)!",
             fontSize = 24.sp
         )
         OutlinedTextField(
@@ -81,6 +83,11 @@ fun LoginPage(modifier: Modifier = Modifier) {
         Row(modifier = modifier.padding(12.dp).fillMaxSize(), horizontalArrangement = Arrangement.Center) {
             Button( onClick = {
                 Toast.makeText(activity, "Login OK!", Toast.LENGTH_LONG).show()
+                activity.startActivity(
+                    Intent(activity, MainActivity::class.java).setFlags(
+                        FLAG_ACTIVITY_SINGLE_TOP
+                    )
+                )
             },
                 enabled = email.isNotEmpty() && password.isNotEmpty()) {
                 Text("Login")
