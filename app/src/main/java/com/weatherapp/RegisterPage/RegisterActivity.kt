@@ -1,4 +1,4 @@
-package com.weatherapp.LoginPage
+package com.weatherapp.RegisterPage
 
 import android.app.Activity
 import android.content.Intent
@@ -30,18 +30,19 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.weatherapp.LoginPage.LoginActivity
+import com.weatherapp.LoginPage.LoginPage
 import com.weatherapp.MainActivity
-import com.weatherapp.RegisterPage.RegisterActivity
-import com.weatherapp.ui.theme.WeatherAppTheme
+import com.weatherapp.RegisterPage.ui.theme.WeatherAppTheme
 
-class LoginActivity : ComponentActivity() {
+class RegisterActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             WeatherAppTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    LoginPage(modifier = Modifier.padding(innerPadding))
+                    RegisterPage(modifier = Modifier.padding(innerPadding))
                 }
             }
         }
@@ -50,19 +51,28 @@ class LoginActivity : ComponentActivity() {
 
 @Preview(showBackground = true)
 @Composable
-fun LoginPage(modifier: Modifier = Modifier) {
+fun RegisterPage(modifier: Modifier = Modifier) {
+    var name by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
+    var repeatedPassword by rememberSaveable { mutableStateOf("") }
     val activity = LocalActivity.current as Activity
     Column(
         modifier = modifier.fillMaxWidth(fraction = 0.9f),
-//        modifier = modifier.padding(24.dp).fillMaxSize(),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = CenterHorizontally
     ) {
         Text(
-            text = "Bem-vindo(a)!",
+            text = "Tela de Registro",
             fontSize = 24.sp
+        )
+        OutlinedTextField(
+            value = name,
+            label = { Text(text = "Digite seu nome") },
+            modifier = modifier,
+            onValueChange = {
+                name = it
+            }
         )
         OutlinedTextField(
             value = email,
@@ -81,31 +91,32 @@ fun LoginPage(modifier: Modifier = Modifier) {
             },
             visualTransformation = PasswordVisualTransformation()
         )
+        OutlinedTextField(
+            value = repeatedPassword,
+            label = { Text(text = "Repita sua senha") },
+            modifier = modifier,
+            onValueChange = {
+                repeatedPassword = it
+            },
+            visualTransformation = PasswordVisualTransformation()
+        )
         Row(modifier = modifier.padding(12.dp).fillMaxSize(), horizontalArrangement = Arrangement.Center) {
             Button( onClick = {
-                Toast.makeText(activity, "Login OK!", Toast.LENGTH_LONG).show()
+                Toast.makeText(activity, "Register OK!", Toast.LENGTH_LONG).show()
                 activity.startActivity(
-                    Intent(activity, MainActivity::class.java).setFlags(
+                    Intent(activity, LoginActivity::class.java).setFlags(
                         FLAG_ACTIVITY_SINGLE_TOP
                     )
                 )
+                activity.finish()
             },
-                enabled = email.isNotEmpty() && password.isNotEmpty()) {
-                Text("Login")
+                enabled = (email.isNotEmpty() && password.isNotEmpty() && name.isNotEmpty())&&(password == repeatedPassword)) {
+                Text("Registrar")
             }
             Button(
-                onClick = { email = ""; password = "" }
+                onClick = { email = ""; password = "";name="";password="";repeatedPassword=""}
             ) {
                 Text("Limpar")
-            }
-            Button(
-                onClick = { activity.startActivity(
-                    Intent(activity, RegisterActivity::class.java).setFlags(
-                        FLAG_ACTIVITY_SINGLE_TOP
-                    )
-                )}
-            ) {
-                Text("Registrar")
             }
         }
     }
