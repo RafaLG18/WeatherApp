@@ -1,4 +1,4 @@
-package com.weatherapp
+package com.weatherapp.LoginPage
 
 import android.app.Activity
 import android.content.Intent
@@ -30,7 +30,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.view.WindowCompat.enableEdgeToEdge
+import com.weatherapp.MainActivity
 import com.weatherapp.ui.theme.WeatherAppTheme
 
 class LoginActivity : ComponentActivity() {
