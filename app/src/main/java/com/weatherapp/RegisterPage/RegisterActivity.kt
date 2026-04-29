@@ -31,8 +31,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.weatherapp.LoginPage.LoginActivity
-import com.weatherapp.LoginPage.LoginPage
-import com.weatherapp.MainActivity
 import com.weatherapp.RegisterPage.ui.theme.WeatherAppTheme
 
 class RegisterActivity : ComponentActivity() {

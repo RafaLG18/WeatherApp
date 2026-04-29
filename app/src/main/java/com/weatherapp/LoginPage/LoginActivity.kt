@@ -30,7 +30,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.weatherapp.MainActivity
+import com.weatherapp.HomePage.MainActivity
 import com.weatherapp.RegisterPage.RegisterActivity
 import com.weatherapp.ui.theme.WeatherAppTheme
 
