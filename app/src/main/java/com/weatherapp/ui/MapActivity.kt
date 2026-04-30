@@ -1,4 +1,4 @@
-package com.weatherapp.ListPage
+package com.weatherapp.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -18,19 +18,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
-import com.weatherapp.HomePage.HomePage
-import com.weatherapp.ListPage.ui.theme.WeatherAppTheme
+import com.weatherapp.MapPage.ui.theme.WeatherAppTheme
 
-class ListActivity : ComponentActivity() {
+class MapActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             WeatherAppTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    ListPage(modifier = Modifier.padding(innerPadding) )
+                    MapPage(modifier = Modifier.padding(innerPadding) )
                 }
             }
         }
@@ -38,14 +36,14 @@ class ListActivity : ComponentActivity() {
 }
 
 @Composable
-fun ListPage(modifier: Modifier= Modifier){
+fun MapPage(modifier: Modifier= Modifier){
     Column(
         modifier = modifier.fillMaxSize()
-            .background(Color.Magenta)
+            .background(Color.Gray)
             .wrapContentSize(Alignment.Center)
     ) {
         Text(
-            text = "Favoritas",
+            text = "Mapa",
             fontWeight = FontWeight.Bold,
             color = Color.White,
             modifier = modifier.align(CenterHorizontally),

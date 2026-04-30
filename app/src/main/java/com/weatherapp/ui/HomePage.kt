@@ -1,4 +1,4 @@
-package com.weatherapp.MapPage
+package com.weatherapp.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,32 +20,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
-import com.weatherapp.ListPage.ListPage
 import com.weatherapp.MapPage.ui.theme.WeatherAppTheme
 
-class MapActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            WeatherAppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MapPage(modifier = Modifier.padding(innerPadding) )
-                }
-            }
-        }
-    }
-}
-
+@Preview(showBackground = true)
 @Composable
-fun MapPage(modifier: Modifier= Modifier){
+fun HomePage(modifier: Modifier= Modifier){
     Column(
         modifier = modifier.fillMaxSize()
-            .background(Color.Gray)
+            .background(Color.Blue)
             .wrapContentSize(Alignment.Center)
     ) {
         Text(
-            text = "Mapa",
+            text = "Home",
             fontWeight = FontWeight.Bold,
             color = Color.White,
             modifier = modifier.align(CenterHorizontally),
@@ -54,3 +40,18 @@ fun MapPage(modifier: Modifier= Modifier){
         )
     }
 }
+
+class ListActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            WeatherAppTheme {
+                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    ListPage(modifier = Modifier.padding(innerPadding))
+                }
+            }
+        }
+    }
+}
+
