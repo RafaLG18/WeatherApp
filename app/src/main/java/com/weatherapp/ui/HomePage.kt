@@ -1,5 +1,6 @@
 package com.weatherapp.ui
 
+import MainViewModel
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,9 +23,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
 import com.weatherapp.MapPage.ui.theme.WeatherAppTheme
 
-@Preview(showBackground = true)
+//@Preview(showBackground = true)
 @Composable
-fun HomePage(modifier: Modifier= Modifier){
+fun HomePage(modifier: Modifier= Modifier,
+             viewModel: MainViewModel){
     Column(
         modifier = modifier.fillMaxSize()
             .background(Color.Blue)
@@ -41,17 +43,17 @@ fun HomePage(modifier: Modifier= Modifier){
     }
 }
 
-class ListActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            WeatherAppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    ListPage(modifier = Modifier.padding(innerPadding))
-                }
-            }
-        }
-    }
-}
+//class ListActivity : ComponentActivity() {
+//    override fun onCreate(savedInstanceState: Bundle?) {
+//        super.onCreate(savedInstanceState)
+//        enableEdgeToEdge()
+//        setContent {
+//            WeatherAppTheme {
+//                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+//                    ListPage(modifier = Modifier.padding(innerPadding))
+//                }
+//            }
+//        }
+//    }
+//}
 
