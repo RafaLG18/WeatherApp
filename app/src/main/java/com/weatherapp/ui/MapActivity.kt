@@ -1,5 +1,6 @@
 package com.weatherapp.ui
 
+import MainViewModel
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,22 +22,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import com.weatherapp.MapPage.ui.theme.WeatherAppTheme
 
-class MapActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            WeatherAppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MapPage(modifier = Modifier.padding(innerPadding) )
-                }
-            }
-        }
-    }
-}
+//class MapActivity : ComponentActivity() {
+//    override fun onCreate(savedInstanceState: Bundle?) {
+//
+//        super.onCreate(savedInstanceState)
+//        enableEdgeToEdge()
+//        setContent {
+//            WeatherAppTheme {
+//                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+//                    MapPage(modifier = Modifier.padding(innerPadding) )
+//                }
+//            }
+//        }
+//    }
+//}
 
 @Composable
-fun MapPage(modifier: Modifier= Modifier){
+fun MapPage(modifier: Modifier= Modifier,
+            viewModel: MainViewModel){
     Column(
         modifier = modifier.fillMaxSize()
             .background(Color.Gray)
