@@ -1,6 +1,5 @@
-package com.weatherapp.RegisterPage.ui.theme
+package com.weatherapp.ui.theme.MapPage
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme

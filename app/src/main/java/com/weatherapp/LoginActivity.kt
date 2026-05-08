@@ -1,4 +1,4 @@
-package com.weatherapp.LoginPage
+package com.weatherapp
 
 import android.app.Activity
 import android.content.Intent
@@ -30,8 +30,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.weatherapp.HomePage.MainActivity
-import com.weatherapp.RegisterPage.RegisterActivity
 import com.weatherapp.ui.theme.WeatherAppTheme
 
 class LoginActivity : ComponentActivity() {

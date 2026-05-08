@@ -1,4 +1,4 @@
-package com.weatherapp.RegisterPage
+package com.weatherapp
 
 import android.app.Activity
 import android.content.Intent
@@ -30,8 +30,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.weatherapp.LoginPage.LoginActivity
-import com.weatherapp.RegisterPage.ui.theme.WeatherAppTheme
+import com.weatherapp.ui.theme.MapPage.WeatherAppTheme
 
 class RegisterActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
