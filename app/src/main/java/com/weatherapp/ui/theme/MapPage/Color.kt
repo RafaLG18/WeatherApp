@@ -1,4 +1,4 @@
-package com.weatherapp.RegisterPage.ui.theme
+package com.weatherapp.ui.theme.MapPage
 
 import androidx.compose.ui.graphics.Color
 

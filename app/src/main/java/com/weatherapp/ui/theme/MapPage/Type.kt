@@ -1,4 +1,4 @@
-package com.weatherapp.MapPage.ui.theme
+package com.weatherapp.ui.theme.MapPage
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
