@@ -63,8 +63,7 @@ class MainActivity : ComponentActivity() {
                         TopAppBar(
                             title = { Text("Bem-vindo/a!") },
                             actions = {
-                                IconButton(onClick = { Firebase.auth.signOut()
-                                    finish() }) {
+                                IconButton(onClick = { Firebase.auth.signOut()}) {
                                     Icon(
                                         imageVector =
                                             Icons.AutoMirrored.Filled.ExitToApp,

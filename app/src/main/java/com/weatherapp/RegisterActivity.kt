@@ -1,8 +1,6 @@
 package com.weatherapp
 
 import android.app.Activity
-import android.content.Intent
-import android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -106,18 +104,11 @@ fun RegisterPage(modifier: Modifier = Modifier) {
                         if (task.isSuccessful) {
                             Toast.makeText(activity,
                                 "Registro OK!", Toast.LENGTH_LONG).show()
-                            activity.finish()
                         } else {
                             Toast.makeText(activity,
                                 "Registro FALHOU!", Toast.LENGTH_LONG).show()
                         }
                     }
-                activity.startActivity(
-                    Intent(activity, LoginActivity::class.java).setFlags(
-                        FLAG_ACTIVITY_SINGLE_TOP
-                    )
-                )
-                activity.finish()
             },
                 enabled = (email.isNotEmpty() && password.isNotEmpty() && name.isNotEmpty())&&(password == repeatedPassword)) {
                 Text("Registrar")
