@@ -1,9 +1,8 @@
 package com.weatherapp.ui
 
-import MainViewModel
+import com.weatherapp.MainViewModel
 import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.ModalBottomSheetDefaults.properties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
