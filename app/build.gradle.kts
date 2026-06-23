@@ -58,6 +58,7 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
     // Google maps for compose
     implementation("com.google.maps.android:maps-compose:8.3.0")
+    implementation("io.coil-kt:coil-compose:2.7.0") // coil
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

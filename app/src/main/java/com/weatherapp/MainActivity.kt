@@ -41,6 +41,7 @@ import com.weatherapp.ui.nav.Route
 import com.weatherapp.ui.theme.WeatherAppTheme
 
 class MainActivity : ComponentActivity() {
+
     @SuppressLint("RestrictedApi")
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,7 +49,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val fbDB = remember { FBDatabase() }
-            val weatherService = remember { WeatherService() }
+            val weatherService = remember { WeatherService(this) }
             val viewModel : MainViewModel = viewModel(
                 factory = MainViewModel.MainViewModelFactory(fbDB, weatherService)
             )

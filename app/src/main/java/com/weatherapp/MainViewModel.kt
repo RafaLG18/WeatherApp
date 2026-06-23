@@ -1,5 +1,6 @@
 package com.weatherapp
 
+import androidx.browser.browseractions.BrowserServiceFileProvider.loadBitmap
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -96,6 +97,7 @@ class MainViewModel (private val db: FBDatabase, private val service : WeatherSe
         service.getWeather(name) { apiWeather ->
             apiWeather?.let {
                 _weather[name] = apiWeather.toWeather()
+                loadBitmap(name)
             }
         }
     }
@@ -103,6 +105,13 @@ class MainViewModel (private val db: FBDatabase, private val service : WeatherSe
         service.getForecast(name) { apiForecast ->
             apiForecast?.let {
                 _forecast[name] = apiForecast.toForecast()
+            }
+        }
+    }
+    private fun loadBitmap(name: String) {
+        _weather[name]?.let { weather ->
+            service.getBitmap(weather.imgUrl) { bitmap ->
+                _weather[name] = weather.copy(bitmap = bitmap)
             }
         }
     }

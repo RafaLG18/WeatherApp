@@ -1,22 +1,27 @@
 # WeatherApp - Documentação Oficial do Projeto
 
-Este é um projeto acadêmico desenvolvido para a faculdade na disciplina de Programação para Dispositivos Móveis (PDM). O **WeatherApp** é um aplicativo Android desenvolvido em **Kotlin** com a interface gráfica construída inteiramente em **Jetpack Compose**. Ele faz uso do **Firebase** para autenticação e banco de dados em nuvem, e integra o **Google Maps** para exibição e gerenciamento dinâmico de cidades favoritas.
+Projeto acadêmico desenvolvido na disciplina de **Programação para Dispositivos Móveis (PDM)** — TADS, IFPE (Prof. Ramide Dantas). O **WeatherApp** é um aplicativo Android escrito em **Kotlin** com interface inteiramente em **Jetpack Compose**. Ele usa o **Firebase** para autenticação e banco de dados em nuvem, o **Google Maps** para gerenciar cidades geograficamente, a **[WeatherAPI.com](https://www.weatherapi.com/)** (via **Retrofit**) para obter clima atual e previsão do tempo, e o **Coil** para carregar os ícones do tempo a partir de URLs.
 
 ---
 
 ## 1. Visão Geral
 
-O **WeatherApp** é um aplicativo móvel voltado para o cadastro e visualização de cidades e suas informações climáticas (simuladas ou em tempo real). O aplicativo resolve o problema de armazenamento e visualização espacial de locais de interesse do usuário, agrupando cidades favoritas em uma lista interativa e mapeando-as geograficamente.
+O usuário se cadastra/loga e monta uma lista de cidades favoritas — digitando o nome (em um diálogo) ou clicando em um ponto do mapa. Para cada cidade, o app exibe o **clima atual** e a **previsão de vários dias**, obtidos em tempo real da WeatherAPI.com. A lista de cidades de cada usuário é persistida no **Cloud Firestore** e sincronizada em tempo real entre os dispositivos.
 
-O fluxo de uso básico compreende o login ou registro de um usuário. Uma vez autenticado, o usuário tem acesso a três telas principais por meio de uma barra de navegação inferior: uma página inicial com saudações, uma tela de listagem de cidades favoritas que permite a adição (por digitação de nome em um diálogo) e exclusão rápida, e uma tela de mapas integrada ao Google Maps.
+O app tem três telas principais, acessíveis por uma barra de navegação inferior:
+- **Início (Home)**: mostra o clima atual e a previsão da cidade selecionada, com os ícones reais do tempo.
+- **Favoritos (List)**: lista as cidades salvas; permite selecionar (abre na Home) ou remover.
+- **Mapa (Map)**: exibe marcadores das cidades favoritas (com o ícone do tempo) e permite adicionar novas clicando no mapa.
 
-No mapa, o aplicativo apresenta marcadores geográficos diferenciados por cores para três cidades fixas do Nordeste (Recife, Caruaru e João Pessoa), além de renderizar dinamicamente marcadores vermelhos normais em todas as cidades que o usuário marcou como favoritas. A adição de novas cidades favoritadas pode ser feita de maneira intuitiva com um único toque em qualquer coordenada do mapa, sincronizando automaticamente essa nova localização na nuvem em tempo real.
+Um detalhe importante das práticas de rede: **ao adicionar por nome, o app busca as coordenadas pela API**; **ao adicionar por clique no mapa, o app busca o nome da cidade pela API** — só então a cidade é salva no Firebase.
+
+A navegação entre as telas é **dirigida por estado**: a aba atual fica em `MainViewModel.page`, o que permite, por exemplo, que clicar numa cidade na lista a selecione e leve automaticamente para a Home.
 
 ---
 
 ## 2. Arquitetura
 
-O projeto adota o padrão de arquitetura **MVVM (Model-View-ViewModel)** recomendado pelo Google para o ecossistema Android moderno. Esta separação garante um código modular, mais fácil de testar, e isola as regras de negócio das particularidades da interface gráfica e do banco de dados.
+O projeto adota o padrão **MVVM (Model-View-ViewModel)**. A novidade em relação às primeiras versões é a **camada de rede** (`api/`), que isola o acesso à WeatherAPI.com. O `MainViewModel` é a fonte única de verdade: a UI lê seu estado observável e dispara eventos; ele orquestra a rede (`WeatherService`) e o banco (`FBDatabase`).
 
 ```mermaid
 graph TD
@@ -24,6 +29,7 @@ graph TD
         MainActivity[MainActivity]
         LoginActivity[LoginActivity]
         RegisterActivity[RegisterActivity]
+        HomePage[HomePage]
         ListPage[ListPage]
         MapPage[MapPage]
         CityDialog[CityDialog]
@@ -36,9 +42,18 @@ graph TD
     subgraph Model [Model / Domain]
         City[City]
         User[User]
+        Weather[Weather]
+        Forecast[Forecast]
     end
 
-    subgraph Data [Data Layer]
+    subgraph Network [Network Layer - Retrofit + Coil]
+        WeatherService[WeatherService]
+        WeatherServiceAPI[WeatherServiceAPI]
+        WeatherAPI[(WeatherAPI.com)]
+        Coil[Coil ImageLoader]
+    end
+
+    subgraph Data [Data Layer - Firebase]
         FBDatabase[FBDatabase]
         FBCity[FBCity]
         FBUser[FBUser]
@@ -46,308 +61,239 @@ graph TD
         FirebaseAuth[Firebase Auth]
     end
 
-    %% Relações e Fluxos
+    %% Fluxos da UI
     MainActivity --> MainViewModel
+    HomePage --> MainViewModel
     ListPage --> MainViewModel
     MapPage --> MainViewModel
+
+    %% ViewModel -> camadas
+    MainViewModel --> WeatherService
     MainViewModel --> FBDatabase
+    WeatherService --> WeatherServiceAPI
+    WeatherService --> Coil
+    WeatherServiceAPI --> WeatherAPI
     FBDatabase --> Firestore
     FBDatabase --> FirebaseAuth
-    FBDatabase -.->|Listen / Callbacks| MainViewModel
-    MainViewModel -.->|Exposes State Flow| ListPage
-    MainViewModel -.->|Exposes State Flow| MapPage
-    
-    %% Conversões
+
+    %% Reatividade
+    FBDatabase -.->|Listener / Callbacks| MainViewModel
+    MainViewModel -.->|Estado observável| HomePage
+    MainViewModel -.->|Estado observável| ListPage
+    MainViewModel -.->|Estado observável| MapPage
+
+    %% Conversões entre modelos
     City <--> FBCity
     User <--> FBUser
+    WeatherService -.->|toWeather| Weather
+    WeatherService -.->|toForecast| Forecast
 ```
 
-### Componentes de Arquitetura:
+### Camadas
 
-1. **Model (Modelo - Domínio)**:
-   Representado pelas classes básicas Kotlin no pacote `com.weatherapp.model`. São objetos de dados puros que descrevem as entidades de negócio do aplicativo:
-   - [City](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/model/City.kt): Nome, clima e coordenadas de localização (`LatLng`).
-   - [User](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/model/User.kt): Nome e e-mail.
+1. **Model (domínio)** — pacote `com.weatherapp.model`. Objetos de dados puros usados pela UI: `City`, `User`, `Weather`, `Forecast`.
+2. **View (UI)** — Jetpack Compose. Activities (`MainActivity`, `LoginActivity`, `RegisterActivity`) e páginas (`HomePage`, `ListPage`, `MapPage`, `CityDialog`). Observa o estado do ViewModel e recompõe a tela a cada mudança.
+3. **ViewModel** — `MainViewModel`. Mantém o estado (cidades, usuário, clima, previsão, cidade/aba selecionada) com `State` do Compose, orquestra rede e banco, e implementa `FBDatabase.Listener`. A aba ativa fica em `page`, o que torna a navegação dirigida por estado.
+4. **Network (rede)** — pacote `com.weatherapp.api`. `WeatherService` + `WeatherServiceAPI` (Retrofit) acessam a WeatherAPI.com. Classes `API*` modelam a resposta JSON, com funções `toWeather()`/`toForecast()` que convertem para o domínio. O `WeatherService` também usa o **Coil** (`getBitmap`) para baixar os ícones do tempo a partir de URLs.
+5. **Data (persistência)** — pacote `com.weatherapp.db.fb`. `FBDatabase` abstrai Firestore + Auth e escuta mudanças em tempo real; `FBCity`/`FBUser` serializam documentos.
 
-2. **View (Visualização - UI)**:
-   Desenvolvida de forma declarativa usando **Jetpack Compose**. Compreende as Activities ([MainActivity](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/MainActivity.kt), [LoginActivity](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/LoginActivity.kt), [RegisterActivity](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/RegisterActivity.kt)) e as páginas do aplicativo ([HomePage](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/ui/HomePage.kt), [ListPage](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/ui/ListPage.kt), [MapPage](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/ui/MapPage.kt)). A interface observa os estados do ViewModel e reage a eles, redesenhando a tela a cada atualização de dados.
+### Conversões entre modelos
+- **API → domínio**: `APICurrentWeather.toWeather()`, `APIWeatherForecast.toForecast()`
+- **Domínio ↔ Firebase**: `City.toFBCity()` / `FBCity.toCity()`, `User.toFBUser()` / `FBUser.toUser()`
 
-3. **ViewModel (Modelo de Visualização)**:
-   Encapsulado em [MainViewModel](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/MainViewModel.kt). Mantém o estado da tela (a lista reativa de cidades favoritas e informações do usuário logado) usando estados nativos do Compose (`mutableStateListOf` e `mutableStateOf`). Ele delega as ações de persistência à camada de dados.
-
-4. **Data Layer (Camada de Dados)**:
-   Gerenciada pela classe [FBDatabase](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/db/fb/FBDatabase.kt), que abstrai as operações de banco de dados NoSQL do Firebase Firestore e controle de autenticação do Firebase Auth. Esta classe escuta ativamente alterações nos documentos na nuvem e notifica o ViewModel de forma assíncrona. Também inclui as classes de dados de persistência ([FBCity](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/db/fb/FBCity.kt) e [FBUser](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/db/fb/FBUser.kt)) que servem para serializar e desserializar documentos do Firestore.
-
-### Fluxo de Dados:
-- **Fluxo de Atualização (Unidirecional / Reativo)**: Mudanças no Firestore disparam eventos em tempo real no `addSnapshotListener` configurado em `FBDatabase`. Este notifica o `MainViewModel` pelos callbacks de listener (`onCityAdded`, `onCityRemoved`). O `MainViewModel` altera seu estado de composição interno (`cities`), que força as telas `ListPage` e `MapPage` a executarem uma recomposição automática, atualizando os marcadores do mapa e a lista em tela.
-- **Fluxo de Ação**: Quando o usuário interage com a UI (clique para remover cidade na lista ou clique no mapa para adicionar), a UI aciona uma função no `MainViewModel`. O ViewModel converte o modelo de domínio em modelo do Firebase e chama os métodos de persistência da classe `FBDatabase`. Esta classe escreve ou deleta o documento no Firebase Firestore.
+### Fluxos de dados
+- **Reativo (banco → UI)**: mudanças no Firestore disparam o `addSnapshotListener` em `FBDatabase`, que notifica o `MainViewModel` (`onCityAdded/Updated/Removed`). O ViewModel altera seu estado e as telas recompõem automaticamente.
+- **Ação (UI → banco)**: o usuário interage (adicionar/remover) → o ViewModel consulta a **API** quando necessário (coordenadas ou nome) e então grava/apaga via `FBDatabase`.
+- **Clima sob demanda**: ao exibir uma cidade, a UI chama `viewModel.weather(name)` / `viewModel.forecast(name)`; o ViewModel carrega da API uma única vez e mantém em cache de memória. Ao receber o clima atual, ele ainda baixa o **bitmap do ícone** (via Coil) para usar nos marcadores do mapa.
+- **Navegação por estado**: a aba atual fica em `viewModel.page`. A `BottomNavBar` apenas atualiza `page`, e a `MainActivity` reage com um `LaunchedEffect(page)` que executa a navegação. Assim, qualquer parte do app (ex.: selecionar cidade na lista) pode trocar de tela alterando `page`.
 
 ---
 
 ## 3. Funcionalidades
 
-O **WeatherApp** implementa as seguintes funcionalidades:
-
-- **Autenticação de Usuários**:
-  - **Login**: Autenticação com e-mail e senha por meio do Firebase Authentication, com botão para limpar campos e redirecionamento para registro.
-  - **Registro**: Criação de novas credenciais com validação local (a senha deve coincidir nos dois campos). Armazena informações adicionais (nome) no banco do Firestore.
-  - **Sessão Persistente**: O aplicativo mantém o usuário conectado. Caso abra o app com login ativo, é levado direto à tela principal.
-  - **Desconexão (Logout)**: Botão de saída rápida na barra superior que limpa a sessão e envia o usuário de volta para a tela de login.
-
-- **Favoritar Cidades**:
-  - **Adição por Nome**: Um diálogo interativo que solicita o nome da cidade para cadastrá-la.
-  - **Adição Dinâmica no Mapa**: Permite clicar em qualquer local do mapa e salvar aquela coordenada geográfica imediatamente como um favorito, gerando o nome no padrão `Cidade@latitude:longitude`.
-
-- **Sincronização em Tempo Real (Real-time Cloud Sync)**:
-  - Integração contínua com o Firebase Firestore. Toda cidade favoritada é associada ao UID exclusivo do usuário logado na coleção `/users/{uid}/cities`, impedindo que os dados vazem para outras contas e sincronizando instantaneamente com a nuvem.
-
-- **Exibição de Lista de Favoritos**:
-  - Uma lista construída com `LazyColumn` que mostra os nomes das cidades favoritas, status de clima (fixado inicialmente como "Carregando clima...") e botão em formato de "X" para remoção imediata.
-
-- **Integração com Google Maps**:
-  - Visualização de mapa utilizando a biblioteca Jetpack Compose Maps.
-  - Exibe marcadores estáticos com cores distintas: **Recife** (Azul), **Caruaru** (Verde) e **João Pessoa** (Vermelho).
-  - Exibe marcadores vermelhos padrão para todas as cidades favoritadas dinamicamente pelo usuário que possuem coordenadas geográficas válidas.
-
-- **Permissões em Tempo de Execução**:
-  - Solicitação automática de permissão para localização precisa (`ACCESS_FINE_LOCATION`) ao carregar a tela principal. Exibe o botão de centralizar o mapa no usuário se a permissão for concedida.
+- **Autenticação de usuários** (Firebase Auth): login por e-mail/senha, cadastro com validação local (senha repetida), sessão persistente e logout.
+- **Favoritar cidades**:
+  - **Por nome** (diálogo): a API resolve as coordenadas (`addCity(name)`).
+  - **Pelo mapa** (clique): a API resolve o nome da cidade (`addCity(location)`).
+- **Clima atual e previsão**: para cada cidade, busca na WeatherAPI a condição atual (temperatura, descrição, ícone) e a previsão de vários dias (mín/máx, condição), com cache em memória.
+- **Ícones reais do tempo**: carregados das URLs da API com **Coil** (`AsyncImage` nas telas; `getBitmap` para os marcadores do mapa), com `loading.png` como imagem de fallback.
+- **Sincronização em tempo real**: cidades salvas em `/users/{uid}/cities` no Firestore, isoladas por usuário e sincronizadas instantaneamente.
+- **Lista de favoritos** (`LazyColumn`): mostra o ícone do tempo + cidade + descrição do clima; permite selecionar (abre na Home) e remover (botão "X").
+- **Navegação por estado**: a aba selecionada é controlada por `viewModel.page`; selecionar uma cidade na lista leva automaticamente à Home.
+- **Integração com Google Maps**: marcadores dinâmicos para cada favorito, exibindo o **ícone do tempo** da cidade; clique no mapa adiciona uma cidade (o nome é resolvido pela API).
+- **Permissão em tempo de execução**: solicita `ACCESS_FINE_LOCATION` na tela principal para habilitar a localização no mapa.
 
 ---
 
 ## 4. Estrutura de Pacotes
 
-A organização de pacotes do projeto segue a estrutura padrão de código-fonte Android sob `app/src/main/java/`:
+Todo o código fica em `app/src/main/java/com/weatherapp/`.
 
 ```
-java/
+com/weatherapp/
 │
-├── MainViewModel.kt               # ViewModel principal do fluxo e a classe factory correspondente
+├── WeatherApp.kt              # Application - AuthStateListener global (roteia login/main)
+├── MainActivity.kt           # Activity principal: Scaffold, TopBar, BottomNav, NavHost, FAB
+├── LoginActivity.kt          # Tela de login (e-mail/senha)
+├── RegisterActivity.kt       # Tela de cadastro de usuários
+├── MainViewModel.kt          # ViewModel principal + MainViewModelFactory
 │
-└── com/weatherapp/
-    ├── WeatherApp.kt              # Classe de Application - gerencia AuthStateListener global
-    ├── MainActivity.kt            # Activity principal com Scaffold, TopAppBar, BottomNavBar e NavHost
-    ├── LoginActivity.kt           # Activity da tela de autenticação por e-mail e senha
-    ├── RegisterActivity.kt        # Activity da tela de cadastro de novos usuários
+├── api/                      # CAMADA DE REDE (Retrofit + Coil + WeatherAPI.com)
+│   ├── WeatherService.kt     # Cliente: getName, getLocation, getWeather, getForecast, getBitmap
+│   ├── WeatherServiceAPI.kt  # Interface Retrofit (endpoints search / current / forecast)
+│   ├── APILocation.kt        # Resposta de busca (nome, região, país, lat, lon)
+│   ├── APICurrentWeather.kt  # Resposta do clima atual + toWeather()
+│   ├── APIWeatherForecast.kt # Resposta da previsão + toForecast()
+│   ├── APIWeather.kt         # Bloco de dados climáticos (temp, condição)
+│   └── APICondition.kt       # Texto e ícone da condição do tempo
+│
+├── model/                    # MODELOS DE DOMÍNIO (Kotlin puro)
+│   ├── City.kt               # Cidade (nome + LatLng) + toFBCity()
+│   ├── User.kt               # Usuário (nome, e-mail)
+│   ├── Weather.kt            # Clima atual (data, descrição, temp, ícone) + LOADING
+│   └── Forecast.kt           # Um dia de previsão (data, condição, mín/máx, ícone)
+│
+├── db/fb/                    # CAMADA DE DADOS (Firebase)
+│   ├── FBDatabase.kt         # Firestore + Auth, listener de tempo real
+│   ├── FBCity.kt             # Cidade serializável + toCity()/City.toFBCity()
+│   └── FBUser.kt             # Usuário serializável + toUser()/User.toFBUser()
+│
+└── ui/                       # CAMADA DE APRESENTAÇÃO (Compose)
+    ├── HomePage.kt           # Clima atual + previsão (ícones via Coil/AsyncImage)
+    ├── ListPage.kt           # Lista de favoritos (selecionar / remover, com ícone)
+    ├── MapPage.kt            # Google Map + marcadores (ícone do tempo) + adicionar por clique
+    ├── CityDialog.kt         # Diálogo para adicionar cidade por nome
     │
-    ├── model/                     # Modelos de domínio (estruturas puras Kotlin)
-    │   ├── City.kt                # Dados de uma cidade (nome, clima, LatLng)
-    │   └── User.kt                # Dados básicos do usuário logado (nome, e-mail)
+    ├── nav/                  # Navegação
+    │   ├── BottomNavItem.kt  # Rotas tipadas (Route.Home/List/Map) + itens da barra
+    │   ├── BottomNavBar.kt   # Barra inferior (atualiza viewModel.page)
+    │   └── MainNavHost.kt    # Grafo: associa rotas às páginas Compose
     │
-    ├── db/                        # Camada de comunicação com bancos de dados
-    │   └── fb/                    # Subpacote específico para integrações com Firebase
-    │       ├── FBDatabase.kt      # Interface com Firestore e Firebase Auth
-    │       ├── FBCity.kt          # Modelo serializável para Cidades no Firestore e mapeador para City
-    │       └── FBUser.kt          # Modelo serializável para Usuários no Firestore e mapeador para User
-    │
-    └── ui/                        # Camada de Apresentação (Interface do Usuário - Compose)
-        ├── HomePage.kt            # Página com a tela inicial de boas-vindas
-        ├── ListPage.kt            # Página com LazyColumn exibindo cidades favoritas
-        ├── MapPage.kt             # Página que renderiza o Google Map e seus marcadores
-        ├── CityDialog.kt          # Diálogo modal para inserção manual de nome de cidade
-        │
-        ├── nav/                   # Componentes de infraestrutura de navegação
-        │   ├── Route.kt           # Definição das rotas tipadas (Home, List, Map)
-        │   ├── BottomNavItem.kt   # Definição e ícones dos botões da barra inferior
-        │   └── BottomNavBar.kt    # Composable que renderiza a barra de navegação inferior
-        │   └── MainNavHost.kt     # Grafo de navegação associando as rotas às páginas Compose
-        │
-        └── theme/                 # Definições visuais de design do Compose (cores, fontes, etc.)
+    └── theme/                # Cores, tipografia e tema Material 3
+
+res/
+└── drawable/
+    └── loading.png           # Imagem de carregamento/fallback dos ícones do tempo
 ```
 
 ---
 
 ## 5. Principais Classes e Funções
 
-### Pacote Raiz `java/`
-
-#### [MainViewModel.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/MainViewModel.kt)
-- **Responsabilidade**: Gerenciar e expor os estados da lista de cidades favoritas (`cities`) e do usuário logado (`user`) para as páginas Compose da UI. Centralizar as chamadas de CRUD de dados delegando para o banco `FBDatabase`.
-- **Assinatura principal**: `class MainViewModel(private val db: FBDatabase) : ViewModel(), FBDatabase.Listener`
+### `MainViewModel.kt` — o cérebro do app
+- **Responsabilidade**: manter o estado da UI (com `State`/`mutableStateMapOf`/`mutableStateOf` do Compose), orquestrar a **rede** (`WeatherService`) e o **banco** (`FBDatabase`), e reagir a mudanças do Firebase (implementa `FBDatabase.Listener`).
+- **Assinatura**: `class MainViewModel(private val db: FBDatabase, private val service: WeatherService) : ViewModel(), FBDatabase.Listener`
+- **Estado exposto**:
+  - `user: User?` — usuário logado (carregado do Firestore).
+  - `cities: List<City>` — favoritos, ordenados por nome.
+  - `page: Route` — aba/rota selecionada.
+  - `city: String?` — cidade exibida na Home.
 - **Funções chave**:
-  - `remove(city: City)`: Remove uma cidade favoritada enviando sua representação Firebase para o método do banco de dados.
-  - `add(name: String, location: LatLng? = null)`: Adiciona uma nova cidade instanciando um objeto `City` e convertendo para `FBCity`.
-  - `onUserLoaded(user: FBUser)`: Callback que recebe a representação do usuário logado no Firestore e atualiza o estado observável de UI com o modelo de domínio `User`.
-  - `onCityAdded(city: FBCity)`: Callback que detecta uma nova cidade inserida no Firestore e a adiciona à lista reativa.
-  - `onCityRemoved(city: FBCity)`: Callback que detecta a exclusão de uma cidade no Firestore e a remove da lista reativa.
-- **Fábrica**: `class MainViewModelFactory(private val db: FBDatabase)` provê a injeção de dependência necessária da base de dados ao criar a instância da ViewModel.
-- **Relacionamentos**: Interage diretamente com `FBDatabase` e é compartilhado entre a `MainActivity` e as telas filhas `ListPage`, `MapPage` e `HomePage`.
+  - `addCity(name: String)` — busca as **coordenadas** pelo nome via `service.getLocation` e então salva no Firebase.
+  - `addCity(location: LatLng)` — busca o **nome** pelas coordenadas via `service.getName` e então salva no Firebase.
+  - `remove(city: City)` — remove a cidade do Firebase.
+  - `weather(name)` — clima atual da cidade; carrega via `service.getWeather` sob demanda, com cache (`_weather`). Retorna `Weather.LOADING` enquanto carrega. Após carregar, chama `loadBitmap` para baixar o ícone.
+  - `forecast(name)` — previsão de vários dias; carrega via `service.getForecast` sob demanda, com cache (`_forecast`).
+  - `loadBitmap(name)` (privado) — baixa o bitmap do ícone do tempo via `service.getBitmap` e atualiza o `Weather` no cache (usado nos marcadores do mapa).
+  - Callbacks `onUserLoaded`, `onCityAdded/Updated/Removed` — mantêm o estado em sincronia com o banco.
+- **`MainViewModelFactory(db, service)`** — fábrica que injeta as dependências ao criar o ViewModel.
 
----
+### Pacote `com.weatherapp.api` (rede)
+- **`WeatherServiceAPI.kt`** — interface Retrofit. Endpoints:
+  - `search(q)` → `Call<List<APILocation>?>` — busca cidade por nome ou coordenada.
+  - `weather(q)` → `Call<APICurrentWeather?>` — clima atual.
+  - `forecast(q)` → `Call<APIWeatherForecast?>` — previsão (10 dias). A chave é injetada via `BuildConfig.WEATHER_API_KEY`.
+- **`WeatherService.kt`** — recebe um `Context`, cria o Retrofit (base URL + GsonConverter) e um `ImageLoader` do Coil. Expõe:
+  - `getName(lat, lng) { name -> }` — nome a partir das coordenadas.
+  - `getLocation(name) { lat, lng -> }` — coordenadas a partir do nome.
+  - `getWeather(name) { apiWeather -> }` — clima atual.
+  - `getForecast(name) { apiForecast -> }` — previsão.
+  - `getBitmap(imgUrl) { bitmap -> }` — baixa o ícone do tempo da URL usando o `ImageLoader` do Coil.
+  - Um helper genérico `enqueue` centraliza o tratamento de resposta/erro das chamadas Retrofit assíncronas.
+- **Classes `API*`** — espelham o JSON da WeatherAPI; `toWeather()` e `toForecast()` convertem para os modelos de domínio.
 
-### Pacote `com.weatherapp.model`
+### Pacote `com.weatherapp.model` (domínio)
+- **`City.kt`** — `name: String`, `location: LatLng?`; `toFBCity()`.
+- **`Weather.kt`** — `date`, `desc`, `temp`, `imgUrl`, `bitmap?` (ícone baixado pelo Coil); constante `LOADING` (estado de carregamento).
+- **`Forecast.kt`** — `date`, `weather`, `tempMin`, `tempMax`, `imgUrl`.
+- **`User.kt`** — `name`, `email`.
 
-#### [City.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/model/City.kt)
-- **Responsabilidade**: Representar a entidade de negócio de uma cidade.
-- **Propriedades**: `name: String`, `weather: String?` (opcional), `location: LatLng?` (coordenada geográfica opcional).
-- **Funções chave**:
-  - `toFBCity()`: Função de conversão que mapeia o objeto do domínio atual para uma classe serializável `FBCity`, preenchendo os valores double de latitude e longitude caso o `LatLng` exista.
+### Pacote `com.weatherapp.db.fb` (Firebase)
+- **`FBDatabase.kt`** — abstrai Firestore + Auth. No `init`, registra `addAuthStateListener`: ao logar, carrega o perfil de `/users/{uid}` e escuta em tempo real `/users/{uid}/cities`; ao deslogar, encerra o listener. Métodos: `register(user)`, `add(city)`, `remove(city)`, `setListener(listener)`. A interface `Listener` define os callbacks que o ViewModel assina.
+- **`FBCity.kt`** — `name`, `lat`, `lng` (campos planos, pois o Firestore não serializa `LatLng`); `toCity()` reconstrói o `LatLng`.
+- **`FBUser.kt`** — `name`, `email`; `toUser()`.
 
-#### [User.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/model/User.kt)
-- **Responsabilidade**: Representar a entidade de domínio do usuário.
-- **Propriedades**: `name: String`, `email: String`.
+### Pacote `com.weatherapp` (Application e Activities)
+- **`WeatherApp.kt`** — `Application`. Observa o estado de auth e roteia automaticamente: logado → `MainActivity`, deslogado → `LoginActivity` (com flags que limpam a pilha de telas).
+- **`LoginActivity.kt`** — login via `signInWithEmailAndPassword`; leva ao cadastro.
+- **`RegisterActivity.kt`** — cadastro via `createUserWithEmailAndPassword`; grava o perfil com `FBDatabase().register(...)`.
+- **`MainActivity.kt`** — cria `FBDatabase` e `WeatherService(this)`, instancia o `MainViewModel` via `MainViewModelFactory`, monta o `Scaffold` (top bar com nome do usuário e logout, bottom nav, FAB de adicionar) e hospeda o `MainNavHost`. O FAB abre o `CityDialog`, que chama `viewModel.addCity(name)`. Um `LaunchedEffect(viewModel.page)` executa a navegação sempre que a aba muda (navegação dirigida por estado). Solicita `ACCESS_FINE_LOCATION`.
 
----
+### Pacote `com.weatherapp.ui` (telas)
+- **`HomePage.kt`** — se nenhuma cidade está selecionada, mostra "Selecione uma cidade!"; caso contrário, exibe o clima atual (`viewModel.weather`) com o ícone (`AsyncImage` do Coil) e a previsão (`viewModel.forecast`) em uma `LazyColumn` de `ForecastItem`. Usa `R.drawable.loading` como fallback das imagens.
+- **`ListPage.kt`** — `LazyColumn` de `CityItem` (ícone do tempo via `AsyncImage`, nome, descrição do clima, botão "X"). Clicar seleciona a cidade (`viewModel.city = ...`) e troca para a Home (`viewModel.page = Route.Home`); o "X" chama `viewModel.remove`.
+- **`MapPage.kt`** — `GoogleMap` com câmera lembrada. Renderiza um marcador para cada favorito (`viewModel.cities` com `LatLng`), usando o bitmap do ícone do tempo (ou `loading.png` enquanto carrega). `onMapClick` chama `viewModel.addCity(location = it)` — o nome é resolvido pela API.
+- **`CityDialog.kt`** — `OutlinedTextField` para o nome; dispara `onConfirm` (→ `addCity(name)`).
 
-### Pacote `com.weatherapp.db.fb`
-
-#### [FBDatabase.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/db/fb/FBDatabase.kt)
-- **Responsabilidade**: Abstrair e concentrar todas as transações feitas nos serviços Firebase (Auth e Firestore).
-- **Interface Listener**: Define métodos de retorno (`onUserLoaded`, `onUserSignOut`, `onCityAdded`, `onCityUpdated`, `onCityRemoved`) que o ViewModel assina para escutar alterações.
-- **Funções chave**:
-  - Bloco `init`: Registra um `addAuthStateListener`. Ao detectar que o usuário logou, busca os detalhes deste na coleção `/users/{uid}` e em seguida registra um `addSnapshotListener` na subcoleção de cidades `/users/{uid}/cities` para escutar adições, atualizações e deleções em tempo real. Ao detectar logout, desativa o snapshot listener de cidades.
-  - `register(user: FBUser)`: Salva as informações iniciais de cadastro do usuário na coleção `/users/{uid}`.
-  - `add(city: FBCity)`: Escreve um documento do tipo cidade favorita na subcoleção `/users/{uid}/cities`, usando o próprio nome da cidade como chave primária de identificação do documento.
-  - `remove(city: FBCity)`: Apaga o documento do favorito na subcoleção `/users/{uid}/cities` pelo nome.
-- **Relacionamentos**: Injetado no ViewModel; utiliza o Firebase SDK para comunicação externa com a nuvem.
-
-#### [FBCity.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/db/fb/FBCity.kt)
-- **Responsabilidade**: Mapear a estrutura que é salva ou lida diretamente nos documentos do Firestore (contendo campos double planos, já que o Firestore não serializa a classe `LatLng` nativamente sem tratamento).
-- **Propriedades**: `name: String?`, `lat: Double?`, `lng: Double?`.
-- **Funções chave**:
-  - `toCity()`: Cria e retorna um objeto de domínio `City`. Caso `lat` e `lng` não sejam nulos, reconstrói o objeto `LatLng`.
-  - Função utilitária global `City.toFBCity()` para converter do domínio para persistência.
-
-#### [FBUser.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/db/fb/FBUser.kt)
-- **Responsabilidade**: Classe serializável para persistência das informações do usuário.
-- **Propriedades**: `name: String?`, `email: String?`.
-- **Funções chave**:
-  - `toUser()`: Instancia a classe de domínio `User`.
-
----
-
-### Pacote `com.weatherapp`
-
-#### [WeatherApp.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/WeatherApp.kt)
-- **Responsabilidade**: Classe base da aplicação Android (`Application`). Gerencia de forma global as rotas e ciclos de atividades no momento do login e logout.
-- **Funções chave**:
-  - No método `onCreate()`, ativa o `addAuthStateListener` do Firebase Auth de forma persistente. Se o usuário estiver autenticado, executa `goToMain()`, caso contrário chama `goToLogin()`.
-  - `goToMain()` e `goToLogin()`: Disparam intents explícitas com flags especiais (`FLAG_ACTIVITY_NEW_TASK`, `FLAG_ACTIVITY_CLEAR_TASK` e `FLAG_ACTIVITY_SINGLE_TOP`) para garantir que o fluxo de atividades seja limpo, impedindo que o botão de voltar retorne para telas de autenticação após o login.
-
-#### [LoginActivity.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/LoginActivity.kt)
-- **Responsabilidade**: Interface do usuário para entrada de credenciais existentes.
-- **Funções chave**:
-  - Composable `LoginPage()`: Desenha os campos de e-mail e senha (este último usando `PasswordVisualTransformation`).
-  - Lógica do botão Login: Aciona `signInWithEmailAndPassword` no Firebase e, em caso de erro, exibe um Toast de falha.
-  - Lógica do botão Registrar: Abre `RegisterActivity` com flags que evitam recriação na pilha.
-
-#### [RegisterActivity.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/RegisterActivity.kt)
-- **Responsabilidade**: Permitir o cadastro de novos usuários preenchendo Nome, E-mail e confirmando a senha.
-- **Funções chave**:
-  - Composable `RegisterPage()`: Monta o formulário de cadastro. Habilita o botão Registrar apenas quando todos os campos estiverem preenchidos e a senha coincidir com sua repetição.
-  - Ao registrar com sucesso com `createUserWithEmailAndPassword`, instancia um `FBDatabase` secundário e envia o nome do usuário cadastrado na coleção de usuários do Firestore pelo método `FBDatabase().register()`.
-
-#### [MainActivity.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/MainActivity.kt)
-- **Responsabilidade**: Activity principal do app após login concluído. Contém a estrutura de base da UI (Scaffold) e gerencia permissões de localização.
-- **Funções chave**:
-  - Inicializa o `FBDatabase` e o `MainViewModel`.
-  - Desenha a `TopAppBar` exibindo o nome do usuário logado (recuperado do ViewModel) e um botão de logout que chama `Firebase.auth.signOut()`.
-  - Renderiza o `FloatingActionButton` (FAB) de adicionar cidade, que fica visível apenas se a aba ativa na navegação for a lista de favoritos.
-  - Lança o diálogo `CityDialog` se o usuário clicar no FAB.
-  - Solicita a permissão `ACCESS_FINE_LOCATION` usando `rememberLauncherForActivityResult`.
-
----
-
-### Pacote `com.weatherapp.ui`
-
-#### [HomePage.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/ui/HomePage.kt)
-- **Responsabilidade**: Tela inicial de boas-vindas do app.
-- **Funções chave**: Composable `HomePage()`. Exibe apenas um container centralizado simples com a palavra "Home" sobre um plano de fundo azul.
-
-#### [ListPage.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/ui/ListPage.kt)
-- **Responsabilidade**: Exibir e gerenciar a lista de cidades favoritas do usuário.
-- **Funções chave**:
-  - Composable `ListPage()`: Observa `viewModel.cities` e renderiza cada uma usando uma `LazyColumn` performática.
-  - Composable `CityItem()`: Exibe um ícone de favorito, o nome da cidade, a simulação do clima e o botão lateral de fechar (excluir). Ao clicar no botão fechar, chama `viewModel.remove(city)`.
-
-#### [MapPage.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/ui/MapPage.kt)
-- **Responsabilidade**: Renderizar o mapa interativo do Google Maps e processar os marcadores.
-- **Funções chave**:
-  - Composable `MapPage()`: Desenha o elemento `GoogleMap` gerenciando estados de câmera via `rememberCameraPositionState()`.
-  - Verifica localmente se a permissão `ACCESS_FINE_LOCATION` está ativa para habilitar o indicador de posição do usuário no mapa.
-  - Renderiza três marcadores geográficos estáticos fixos (Recife, Caruaru, João Pessoa) com cores alteradas.
-  - Mapeia a lista `viewModel.cities` para renderizar marcadores adicionais vermelhos para cada cidade com coordenadas cadastradas.
-  - Captura cliques livres no mapa pelo callback `onMapClick` e cadastra uma nova cidade no ViewModel com as coordenadas clicadas no padrão: `"Cidade@lat:lng"`.
-
-#### [CityDialog.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/ui/CityDialog.kt)
-- **Responsabilidade**: Modal em tela para entrada de texto manual.
-- **Funções chave**: Composable `CityDialog()`. Fornece um campo de entrada `OutlinedTextField` para o nome da cidade e dispara o callback `onConfirm` quando o usuário clica em "OK".
-
----
-
-### Pacote `com.weatherapp.ui.nav`
-
-#### [Route.kt` / `BottomNavItem.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/ui/nav/BottomNavItem.kt)
-- **Responsabilidade**: Definir os identificadores tipados de rotas de navegação do Compose e suas respectivas descrições e ícones na interface.
-- **Rotas**: `Route.Home`, `Route.List`, `Route.Map` (decorados com `@Serializable` para compatibilidade com o Navigation Compose moderno).
-- **Itens de Menu**: `BottomNavItem.HomeButton` (Início), `BottomNavItem.ListButton` (Favoritos), `BottomNavItem.MapButton` (Mapa).
-
-#### [BottomNavBar.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/ui/nav/BottomNavBar.kt)
-- **Responsabilidade**: Componente gráfico da barra de navegação inferior.
-- **Funções chave**: `BottomNavBar()`. Controla qual aba está ativa comparando a rota atual com as rotas definidas e realiza a transição de telas via `navController.navigate()` com configurações de popUpTo para preservar estados.
-
-#### [MainNavHost.kt](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/ui/nav/MainNavHost.kt)
-- **Responsabilidade**: Montar a árvore de rotas vinculando as URLs tipadas aos seus respectivos Composables e injetar a instância compartilhada do `MainViewModel`.
-- **Funções chave**: `MainNavHost()`.
+### Pacote `com.weatherapp.ui.nav` (navegação)
+- **`BottomNavItem.kt`** — rotas tipadas `Route.Home/List/Map` (`@Serializable`) e os itens da barra (Início, Favoritos, Mapa).
+- **`BottomNavBar.kt`** — barra inferior. A aba marcada como selecionada é comparada com `viewModel.page`, e o clique apenas atualiza `viewModel.page` (a navegação em si é feita pelo `LaunchedEffect` na `MainActivity`).
+- **`MainNavHost.kt`** — `NavHost` que mapeia cada rota para `HomePage`, `ListPage`, `MapPage`, injetando o `MainViewModel` compartilhado.
 
 ---
 
 ## 6. Dependências Externas
 
-O aplicativo gerencia suas dependências utilizando catálogos de versão centralizados no arquivo [libs.versions.toml](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/gradle/libs.versions.toml) e importados em [build.gradle.kts](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/build.gradle.kts).
+Gerenciadas no catálogo [libs.versions.toml](gradle/libs.versions.toml) e em [app/build.gradle.kts](app/build.gradle.kts).
 
-| Biblioteca / SDK | Versão | Propósito no Projeto |
-| :--- | :---: | :--- |
-| **Firebase Auth** | `24.1.0` | Gerenciamento de cadastro, autenticação e login de usuários na nuvem. |
-| **Firebase Firestore** | `26.3.0` | Banco de dados NoSQL para sincronizar as cidades favoritas dos usuários em tempo real. |
-| **Google Maps SDK (play-services-maps)** | `20.0.0` | API nativa da Google que fornece acesso e renderização do Google Maps no Android. |
-| **Google Location Services** | `21.3.0` | Recuperação das coordenadas geográficas e localização física do dispositivo do usuário. |
-| **Google Maps Compose (maps-compose)** | `8.3.0` | Biblioteca de integração oficial do Google Maps otimizada para o Jetpack Compose. |
-| **Navigation Compose** | `2.9.8` | Suporte a transições de tela e navegação estruturada de abas usando rotas type-safe. |
-| **KotlinX Serialization JSON** | `1.11.0` | Mecanismo de serialização e desserialização de classes Kotlin para passar dados em rotas. |
-| **Material Icons Extended** | - | Biblioteca estendida de ícones adicionais do Material 3. |
-| **Lifecycle ViewModel Compose** | `2.10.0` | Vinculação e inicialização correta do ViewModel no ciclo de vida dos Composables. |
+| Biblioteca / SDK | Propósito |
+| :--- | :--- |
+| **Retrofit 2** (`3.0.0`) | Cliente HTTP para consumir a WeatherAPI.com. |
+| **Converter Gson** (`3.0.0`) | Serializa/desserializa o JSON da API em objetos Kotlin. |
+| **Coil Compose** (`2.7.0`) | Carrega os ícones do tempo a partir de URLs (`AsyncImage` e `ImageLoader`). |
+| **Firebase Auth** | Cadastro, login e sessão de usuários. |
+| **Firebase Firestore** | Banco NoSQL para sincronizar favoritos em tempo real. |
+| **Google Maps SDK** (`20.0.0`) | Renderização do Google Maps no Android. |
+| **Google Location Services** (`21.3.0`) | Coordenadas/localização do dispositivo. |
+| **Maps Compose** (`8.3.0`) | Integração do Google Maps com Jetpack Compose. |
+| **Navigation Compose** (`2.9.8`) | Navegação por rotas type-safe. |
+| **KotlinX Serialization JSON** (`1.11.0`) | Suporte às rotas serializáveis do Navigation. |
+| **Material Icons Extended** | Ícones adicionais do Material 3. |
+| **Lifecycle ViewModel Compose** (`2.10.0`) | Integração do ViewModel ao ciclo de vida dos Composables. |
 
 ---
 
 ## 7. Configuração e Execução
 
 ### Pré-requisitos
-1. **Android Studio** instalado (versão Ladybug ou superior).
-2. **Java Development Kit (JDK) 17** ou superior instalado e configurado no Android Studio.
-3. Um dispositivo Android físico conectado via USB com a Depuração USB ativada, ou um Emulador Android configurado.
+1. **Android Studio** atualizado.
+2. **JDK 17+**.
+3. Dispositivo Android físico (depuração USB) ou emulador.
 
-### Passos de Configuração
+### Passos
 
-#### 1. Clonar o projeto e abrir no Android Studio
-Faça o download do código fonte e importe a pasta raiz do projeto no Android Studio. Aguarde a conclusão da primeira sincronização do Gradle.
+#### 1. Abrir o projeto
+Importe a pasta raiz no Android Studio e aguarde o sync do Gradle.
 
 #### 2. Configurar o Firebase
-1. Vá até o [Firebase Console](https://console.firebase.google.com/).
-2. Crie um novo projeto acadêmico.
-3. Adicione um aplicativo Android ao projeto com o pacote correspondente: `com.weatherapp`.
-4. Faça o download do arquivo `google-services.json` gerado pelo assistente do Firebase.
-5. Copie e cole esse arquivo na pasta `/app` do projeto:
-   - Caminho de destino: `/app/google-services.json`
-6. No console do Firebase:
-   - Ative o **Firebase Authentication** com o provedor de login por "E-mail/Senha".
-   - Ative o **Cloud Firestore** em modo de teste (ou configure regras que permitam leitura/escrita sob a coleção `/users`).
+1. No [Firebase Console](https://console.firebase.google.com/), crie um projeto e adicione um app Android com o pacote `com.weatherapp`.
+2. Baixe o `google-services.json` e coloque em `app/google-services.json`.
+3. Ative o **Authentication** (provedor E-mail/Senha) e o **Cloud Firestore**.
 
-#### 3. Configurar a Chave do Google Maps
-1. Vá até o [Google Cloud Console](https://console.cloud.google.com/).
-2. Crie ou selecione um projeto existente.
-3. Vá em "APIs e Serviços" e ative o **Maps SDK for Android**.
-4. Crie uma **Chave de API** em "Credenciais".
-5. Na raiz do seu projeto Android (onde fica localizado o arquivo `settings.gradle.kts`), crie ou edite o arquivo chamado `local.properties`.
-6. Adicione a seguinte propriedade no final do arquivo:
-   ```properties
-   MAPS_API_KEY=SUA_CHAVE_DE_API_DO_GOOGLE_MAPS
-   ```
-   *(Nota: O plugin Gradle `secrets-gradle-plugin` lerá essa variável e a injetará de forma segura nos metadados do aplicativo em tempo de compilação).*
+#### 3. Configurar as chaves de API (`local.properties`)
+Na raiz do projeto, edite/crie o `local.properties` (não versionado — está no `.gitignore`) e adicione:
+```properties
+MAPS_API_KEY="SUA_CHAVE_DO_GOOGLE_MAPS"
+WEATHER_API_KEY="SUA_CHAVE_DA_WEATHERAPI"
+```
+- **`MAPS_API_KEY`**: chave do **Maps SDK for Android** ([Google Cloud Console](https://console.cloud.google.com/)), lida pelo `secrets-gradle-plugin`.
+- **`WEATHER_API_KEY`**: chave da **[WeatherAPI.com](https://www.weatherapi.com/)** (Dashboard), injetada no código como `BuildConfig.WEATHER_API_KEY` (configurada em `app/build.gradle.kts`).
+
+> Após mexer no `build.gradle.kts`, faça um **Build → Clean Project** (só o sync pode não bastar).
 
 ### Compilação e Execução
-No menu do topo do Android Studio, certifique-se de que o módulo `app` está selecionado e o seu emulador/dispositivo conectado está visível.
-- Clique no botão **Run** (ícone do Play verde 🟢) ou use o atalho `Shift + F10`.
-- Alternativamente, use a linha de comando no terminal da raiz do projeto para compilar e instalar:
+- No Android Studio: **Run** (▶) ou `Shift + F10`.
+- Via terminal:
   ```bash
   ./gradlew installDebug
   ```
@@ -356,7 +302,7 @@ No menu do topo do Android Studio, certifique-se de que o módulo `app` está se
 
 ## 8. Fluxo de Autenticação
 
-O fluxo de telas e ciclo de autenticação do aplicativo funciona de forma contínua e assíncrona baseado no estado de login do Firebase Authentication. Ele é mapeado da seguinte maneira:
+Baseado no estado de login do Firebase Auth, observado globalmente em `WeatherApp.kt`.
 
 ```
                   ┌──────────────────────┐
@@ -372,103 +318,78 @@ O fluxo de telas e ciclo de autenticação do aplicativo funciona de forma cont�
                              ▼                                 ▼
                  ┌──────────────────────┐           ┌──────────────────────┐
                  │   LoginActivity      │           │    MainActivity      │
-                 │    (Login Screen)    │           │    (Main App Screen) │
                  └─────┬──────────┬─────┘           └──────────┬───────────┘
-                       │          │                            │
                        │     [Registrar]                       │
-                       │          │                            │
                        │          ▼                            │
                        │  ┌──────────────┐                     │
-             [Confirm] │  │RegisterActiv.│                     │
-               Login   │  │(Regis. Screen)                     │
+             [Login]   │  │RegisterActiv.│   [Success]         │
                        │  └──────┬───────┘                     │
-                       │         │                             │
-                       │    [Success]                          │
-                       │         ├─────────────────────────────┘
-                       │         │
-                       ▼         ▼
-                 ┌──────────────────────┐
-                 │      MainActivity    │
-                 │                      │
-                 │   TopBar -> [Exit] ──┼──────────────────────┐
-                 └──────────────────────┘                      │
-                                                               │
-                                                       [Auth SignOut]
-                                                               │
-                                                               ▼
-                                                    ┌──────────────────────┐
-                                                    │   LoginActivity      │
-                                                    └──────────────────────┘
+                       ▼         ▼                             ▼
+                 ┌──────────────────────┐           ┌──────────────────────┐
+                 │      MainActivity    │  [SignOut]→│   LoginActivity      │
+                 └──────────────────────┘           └──────────────────────┘
 ```
 
-1. **Monitoramento Global**: A classe customizada [WeatherApp](file:///home/rafael/Documentos/projetos/faculdade/pdm/WeatherApp/app/src/main/java/com/weatherapp/WeatherApp.kt) registra um observador `addAuthStateListener` no Firebase Auth logo no seu início. Esse escutador roda em segundo plano durante toda a vida do processo do app.
-2. **Entrada sem Sessão**: Se o usuário não está autenticado, o listener chama `goToLogin()`, que inicia a `LoginActivity` e limpa o histórico de telas anteriores da pilha.
-3. **Fluxo de Login bem-sucedido**: O usuário insere suas credenciais e clica no botão "Login". O SDK do Firebase se comunica com a nuvem. Caso a credencial seja válida, a sessão é iniciada. O `AuthStateListener` percebe o login, dispara o callback e inicia a `MainActivity` chamando `goToMain()`.
-4. **Fluxo de Cadastro**: O usuário pode clicar no botão "Registrar" na tela de login para ir à `RegisterActivity`. Quando preenche seus dados válidos e clica em "Registrar", o app chama o SDK para criar o login. Assim que o login é criado na nuvem, o aplicativo envia o nome do usuário cadastrado para o Firestore (`FBDatabase().register(...)`). O login bem-sucedido aciona o listener global, disparando o redirecionamento automático para a `MainActivity`.
-5. **Fluxo de Desconexão (Logout)**: A qualquer momento na `MainActivity`, o usuário pode clicar no ícone de saída na barra superior (`TopAppBar`). Esse clique chama `Firebase.auth.signOut()`. O `AuthStateListener` na classe `WeatherApp` detecta a perda da sessão ativa, apaga o estado da lista no banco local de imediato e chama `goToLogin()`, redirecionando o usuário para a tela de login.
+1. **Monitoramento global**: `WeatherApp` registra um `addAuthStateListener` no início e o mantém durante toda a vida do processo.
+2. **Sem sessão**: o listener chama `goToLogin()` → `LoginActivity` (pilha limpa).
+3. **Login bem-sucedido**: validada a credencial, o listener percebe o login e chama `goToMain()` → `MainActivity`.
+4. **Cadastro**: na `RegisterActivity`, após `createUserWithEmailAndPassword`, o nome é gravado no Firestore (`FBDatabase().register(...)`); o login automático aciona o redirecionamento para a `MainActivity`.
+5. **Logout**: o botão de saída na `TopAppBar` chama `Firebase.auth.signOut()`; o listener detecta e chama `goToLogin()`.
 
 ---
 
-## 9. Fluxo do Mapa e Sincronização
+## 9. Fluxo de Clima, Mapa e Sincronização
 
-A sincronização de favoritos entre a lista e o mapa utiliza o `MainViewModel` como fonte única de verdade dos dados (Single Source of Truth), com sincronização bidirecional na nuvem através do Firebase Firestore.
+O `MainViewModel` é a fonte única de verdade. A rede (WeatherAPI) entra no momento de **adicionar** uma cidade (resolver nome/coordenadas) e de **exibir** o clima/previsão.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│                             Firebase Firestore                             │
-│                     Coleção: /users/{uid}/cities/                          │
-└──────────────────────────────────────┬─────────────────────────────────────┘
-                                       │
+│                             Firebase Firestore                               │
+│                       Coleção: /users/{uid}/cities/                          │
+└──────────────────────────────────────┬───────────────────────────────────────┘
                     [addSnapshotListener (Tempo Real)]
-                                       │
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
-│                         FBDatabase (Data Layer)                            │
-│                  - Listener.onCityAdded/Removed()                          │
-└──────────────────────────────────────┬─────────────────────────────────────┘
-                                       │
-                             [Callback Triggers]
-                                       │
+│                         FBDatabase (Data Layer)                              │
+│                  - Listener.onCityAdded/Updated/Removed()                    │
+└──────────────────────────────────────┬───────────────────────────────────────┘
+                             [Callbacks]
                                        ▼
 ┌────────────────────────────────────────────────────────────────────────────┐
-│                    MainViewModel (Observable State)                        │
-│             - _cities (mutableStateListOf) -> cities: List                 │
-└────────────────────────┬───────────────────────────┬───────────────────────┘
-                         │                           │
-              [State Recomposition]       [State Recomposition]
-                         │                           │
-                         ▼                           ▼
-┌───────────────────────────────────┐     ┌──────────────────────────────────┐
-│        ListPage (UI Screen)       │     │       MapPage (UI Screen)        │
-│  - LazyColumn list items          │     │  - GoogleMap Composable          │
-│  - Clique excluir -> remove()     │     │  - Clique mapa -> add()          │
-└───────────────────────────────────┘     └──────────────────────────────────┘
+│                    MainViewModel (estado observável)                         │
+│        _cities / _weather / _forecast / city / page                         │
+│        addCity() ──> WeatherService ──> WeatherAPI.com                       │
+└───────────┬───────────────────────┬───────────────────────┬─────────────────┘
+            ▼                        ▼                        ▼
+   ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+   │   HomePage      │     │    ListPage     │     │     MapPage     │
+   │ clima+previsão  │     │ selecionar/rem. │     │ clique->addCity │
+   └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
-1. **Carregamento dos Favoritos**:
-   - Assim que o usuário faz login, a classe `FBDatabase` escuta em tempo real a subcoleção de favoritos (`/users/{uid}/cities`) no Firestore via snapshot listener.
-   - Qualquer modificação (documento adicionado ou removido no banco) é capturada e encaminhada para o listener da `MainViewModel`.
-   - O `MainViewModel` atualiza o objeto `_cities` que é um `mutableStateListOf<City>`.
-   - As telas `ListPage` e `MapPage` leem essa lista em seus loops Compose. Consequentemente, uma adição de documento no Firebase gera automaticamente um novo marcador no mapa e um novo item de linha na lista física.
+### Adicionar cidade por nome (diálogo)
+1. FAB → `CityDialog` → `viewModel.addCity(name)`.
+2. O ViewModel chama `service.getLocation(name)`; a **API** retorna lat/lng.
+3. O ViewModel grava a `City` (já com coordenadas) via `db.add()`.
+4. O Firestore notifica o snapshot listener → `onCityAdded` → estado atualizado → telas recompõem.
 
-2. **Criação de Marcadores**:
-   - **Marcadores Fixos**: No composable `MapPage`, três instâncias estáticas de marcador são declaradas e salvas em memória local (`Recife`, `Caruaru`, `João Pessoa`). Elas são desenhadas diretamente dentro da tag `GoogleMap` e recebem cores azul, verde e vermelha via constantes do SDK `BitmapDescriptorFactory`.
-   - **Marcadores Dinâmicos**: O `MapPage` percorre toda a lista de `viewModel.cities` em tempo de desenho. Para cada cidade que possui coordenadas geográficas válidas (`LatLng`), o composable renderiza uma tag `Marker(state = MarkerState(position = city.location), title = city.name)`.
+### Adicionar cidade pelo mapa (clique)
+1. `onMapClick` → `viewModel.addCity(location)`.
+2. O ViewModel chama `service.getName(lat, lng)`; a **API** retorna o nome da cidade.
+3. Grava a `City` via `db.add()` → mesma cadeia de sincronização acima.
 
-3. **Fluxo de Adição por Clique no Mapa**:
-   - O componente `GoogleMap` possui o evento de escuta `onMapClick`.
-   - Quando o usuário toca na tela do mapa em um ponto vazio, o mapa retorna as coordenadas exatas do toque (`it.latitude` e `it.longitude`).
-   - O composable chama `viewModel.add(name = "Cidade@${it.latitude}:${it.longitude}", location = it)`.
-   - O ViewModel instancia a entidade `City`, gera a conversão para `FBCity` (com campos double planos) e chama o banco de dados `db.add()`.
-   - O método `add()` escreve esse favorito no Firestore no documento correspondente a `Cidade@latitude:longitude` sob o caminho `/users/{uid}/cities/Cidade@latitude:longitude`.
-   - O Firestore atualiza o banco de dados em nuvem.
-   - O listener de snapshots da `FBDatabase` detecta a inserção do documento no Firestore, decodifica para `FBCity`, chama `listener?.onCityAdded(fbCity)`.
-   - O `MainViewModel` recebe o callback, reconverte de `FBCity` para `City` e insere na lista interna do estado observável `_cities`.
-   - A alteração na lista de estados reativos causa a recomposição simultânea do mapa (mostrando o novo marcador vermelho na posição exata clicada) e da lista física de favoritos (inserindo a linha correspondente).
+### Exibir clima, previsão e ícones
+1. Na Home/Lista, a UI chama `viewModel.weather(name)` e `viewModel.forecast(name)`.
+2. Na primeira chamada, retorna `Weather.LOADING`/lista vazia e dispara `service.getWeather`/`getForecast`.
+3. Quando a API responde, o resultado é convertido (`toWeather`/`toForecast`), guardado no cache (`_weather`/`_forecast`) e a tela recompõe com os dados reais.
+4. Em seguida, `loadBitmap` baixa o **ícone do tempo** via Coil (`service.getBitmap`) e atualiza o `Weather` no cache — usado nos marcadores do mapa. Nas telas (Home/Lista), o ícone é carregado diretamente da URL com `AsyncImage`, usando `loading.png` como fallback.
 
-4. **Sincronização Lista-Mapa**:
-   - Se o usuário navegar para a tela de Lista (`ListPage`) e clicar no ícone "X" (Close) de remoção ao lado de qualquer item, a lista aciona `viewModel.remove(city)`.
-   - O ViewModel solicita que a base delete o documento correspondente pelo nome no Firestore.
-   - O Firestore deleta o registro.
-   - O SnapshotListener detecta o evento de deleção, notifica o ViewModel (`onCityRemoved`) e a cidade é excluída do estado `_cities`.
-   - Ao voltar para a tela de Mapa, o marcador correspondente àquela cidade sumiu, estando os dados perfeitamente sincronizados através do ViewModel unificado.
+### Selecionar cidade e navegar (navegação por estado)
+1. Na `ListPage`, clicar numa cidade define `viewModel.city = nome` e `viewModel.page = Route.Home`.
+2. A `MainActivity` observa `viewModel.page` com um `LaunchedEffect` e navega para a Home.
+3. A Home recompõe exibindo o clima/previsão da cidade selecionada. (A `BottomNavBar` também troca de aba apenas atualizando `viewModel.page`.)
+
+### Remover cidade
+1. Na `ListPage`, o botão "X" chama `viewModel.remove(city)` → `db.remove()`.
+2. O Firestore apaga o documento; o snapshot listener dispara `onCityRemoved`; o estado é atualizado e o marcador/linha somem — Home, Lista e Mapa ficam sincronizados.
+```
