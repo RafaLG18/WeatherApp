@@ -19,6 +19,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +41,7 @@ import com.weatherapp.ui.nav.Route
 import com.weatherapp.ui.theme.WeatherAppTheme
 
 class MainActivity : ComponentActivity() {
+
     @SuppressLint("RestrictedApi")
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,7 +49,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val fbDB = remember { FBDatabase() }
-            val weatherService = remember { WeatherService() }
+            val weatherService = remember { WeatherService(this) }
             val viewModel : MainViewModel = viewModel(
                 factory = MainViewModel.MainViewModelFactory(fbDB, weatherService)
             )
@@ -87,7 +89,7 @@ class MainActivity : ComponentActivity() {
                             BottomNavItem.ListButton,
                             BottomNavItem.MapButton,
                         )
-                        BottomNavBar(navController = navController, items)
+                        BottomNavBar(viewModel, navController, items)
                     },
                     floatingActionButton = {
                         if (showButton) {
@@ -100,6 +102,18 @@ class MainActivity : ComponentActivity() {
                     Box(modifier = Modifier.Companion.padding(innerPadding)) {
                         launcher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
                         MainNavHost(navController = navController, viewModel = viewModel)
+                    }
+                    LaunchedEffect(viewModel.page) {
+                        navController.navigate(viewModel.page) {
+                            // Volta pilha de navegação até HomePage (startDest).
+                            navController.graph.startDestinationRoute?.let {
+                                popUpTo(it) {
+                                    saveState = true
+                                }
+                                restoreState = true
+                            }
+                            launchSingleTop = true
+                        }
                     }
                 }
             }
