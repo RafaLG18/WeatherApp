@@ -34,4 +34,24 @@ class WeatherService {
             }
         })
     }
+
+    fun getWeather(name: String, onResponse: (APICurrentWeather?) -> Unit){
+        val call: Call<APICurrentWeather?> = weatherAPI.weather(name)
+        enqueue(call) { onResponse.invoke(it) }
+    }
+    fun getForecast(name: String, onResponse : (APIWeatherForecast?) -> Unit) {
+        val call: Call<APIWeatherForecast?> = weatherAPI.forecast(name)
+        enqueue(call) { onResponse.invoke(it) }
+    }
+    private fun <T> enqueue(call: Call<T?>, onResponse: (T?) -> Unit) {
+        call.enqueue(object : Callback<T?> {
+            override fun onResponse(call: Call<T?>, response: Response<T?>) {
+                onResponse(response.body())
+            }
+            override fun onFailure(call: Call<T?>, t: Throwable) {
+                Log.w("WeatherApp WARNING", "" + t.message)
+                onResponse(null)
+            }
+        })
+    }
 }
