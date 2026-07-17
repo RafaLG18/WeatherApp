@@ -5,13 +5,15 @@ import com.weatherapp.db.fb.FBCity
 
 data class City (
     val name : String,
-    val location: LatLng? = null
+    val location: LatLng? = null,
+    val isMonitored: Boolean = false
 ) {
     fun toFBCity(): FBCity {
         val fbCity = FBCity()
         fbCity.name = this.name
         fbCity.lat = this.location?.latitude ?: 0.0
         fbCity.lng = this.location?.longitude ?: 0.0
+        fbCity.monitored = this.isMonitored
         return fbCity
     }
 }

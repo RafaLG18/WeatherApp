@@ -16,6 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -75,9 +77,16 @@ fun CityItem(
         )
         Spacer(modifier = Modifier.size(12.dp))
         Column(modifier = modifier.weight(1f)) {
-            Text(modifier = Modifier,
-                text = city.name,
-                fontSize = 24.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(modifier = Modifier,
+                    text = city.name,
+                    fontSize = 24.sp)
+                Spacer(modifier = Modifier.size(8.dp))
+                val icon = if (city.isMonitored) Icons.Filled.Notifications
+                           else Icons.Outlined.Notifications
+                Icon( imageVector = icon, contentDescription = "Monitorada?",
+                    modifier = Modifier.size(24.dp) )
+            }
             Text(modifier = Modifier,
                 text = desc,
                 fontSize = 16.sp)
