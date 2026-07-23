@@ -45,9 +45,24 @@ class Repository (private val fbDB: FBDatabase,
             }
         }
     }
-    fun add(city: City) = fbDB.add(city.toFBCity())
-    fun remove(city: City) = fbDB.remove(city.toFBCity())
-    fun update(city: City) = fbDB.update(city.toFBCity())
+    fun add(city: City) {
+        ioScope.launch {
+            localDB.insert(city.toLocalCity()).join()
+            fbDB.add(city.toFBCity())
+        }
+    }
+    fun remove(city: City) {
+        ioScope.launch {
+            localDB.delete(city.toLocalCity()).join()
+            fbDB.remove(city.toFBCity())
+        }
+    }
+    fun update(city: City) {
+        ioScope.launch {
+            localDB.update(city.toLocalCity()).join()
+            fbDB.update(city.toFBCity())
+        }
+    }
     override fun onUserLoaded(user: FBUser)= listener?.onUserLoaded(user.toUser())?:Unit
     override fun onUserSignOut() = listener?.onUserSignOut()?:Unit
     override fun onCityAdded(city: FBCity) {
