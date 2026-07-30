@@ -102,4 +102,15 @@ class MainViewModel (private val repo: Repository, private val service : Weather
             }
         }
     }
+
+    @Suppress("UNCHECKED_CAST")
+    class MainViewModelFactory(
+        private val repo: Repository,
+        private val service: WeatherService,
+        private val monitor: ForecastMonitor
+    ) : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            return MainViewModel(repo, service, monitor) as T
+        }
+    }
 }

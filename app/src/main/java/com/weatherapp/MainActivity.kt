@@ -46,6 +46,7 @@ import com.weatherapp.ui.nav.MainNavHost
 import com.weatherapp.ui.nav.Route
 import com.weatherapp.ui.theme.WeatherAppTheme
 import androidx.core.util.Consumer
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 class MainActivity : ComponentActivity() {
 
@@ -64,6 +65,7 @@ class MainActivity : ComponentActivity() {
             val viewModel : MainViewModel = viewModel(
                 factory = MainViewModel.MainViewModelFactory(repo, weatherService,monitor)
             )
+            val user = viewModel.user.collectAsStateWithLifecycle(null).value
             val navController = rememberNavController()
             var showDialog by remember { mutableStateOf(false) }
             val currentRoute = navController.currentBackStackEntryAsState()
@@ -80,7 +82,7 @@ class MainActivity : ComponentActivity() {
                     topBar = {
                         TopAppBar(
                             title = {
-                                val name = viewModel.user?.name?:"[carregando...]"
+                                val name = user?.name ?: "[carregando...]"
                                 Text("Bem-vindo/a! $name")
                             },
                             actions = {
