@@ -16,8 +16,6 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.core.graphics.scale
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.play.integrity.internal.l
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
@@ -26,7 +24,6 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.weatherapp.R
 import com.weatherapp.model.Weather
-import kotlinx.coroutines.flow.forEach
 
 @Composable
 fun MapPage(modifier: Modifier= Modifier,
@@ -57,7 +54,17 @@ fun MapPage(modifier: Modifier= Modifier,
                 LaunchedEffect(weather) {
                     viewModel.loadBitmap(it.name)
                 }
-
+                val bitmap = weather.bitmap
+                    ?: getDrawable(context, R.drawable.loading)?.toBitmap()
+                val icon = bitmap?.let {
+                    BitmapDescriptorFactory.fromBitmap(it.scale(120, 120))
+                }
+                Marker(
+                    state = MarkerState(position = it.location!!),
+                    title = it.name,
+                    snippet = weather.desc,
+                    icon = icon
+                )
             }
         }
     }

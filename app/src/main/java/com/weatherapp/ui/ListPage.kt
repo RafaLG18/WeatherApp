@@ -72,7 +72,7 @@ fun CityItem(
     modifier: Modifier = Modifier,
     weather: Weather
 ) {
-    val desc = if (weather == Weather.LOADING) "Carregando clima..." else weather.desc
+    val desc = if (weather == Weather.LOADING) "Carregando climea..." else weather.desc
     Row(
         modifier = modifier.fillMaxWidth().padding(8.dp).clickable { onClick() },
         verticalAlignment = Alignment.CenterVertically
